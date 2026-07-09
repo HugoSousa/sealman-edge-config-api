@@ -273,7 +273,10 @@
         "dockerdns": [],
         "params": {},        
         "compose_files": {
-            "seal-app-connection-check": "version: \"3.8\"\n\nservices:\n  backend:\n    image: {{container_registry_address}}/seal-app-connection-check-backend:1.0.1\n    container_name: seal-app-conn-check-api\n    restart: unless-stopped\n    ports:\n      - \"9091:9091\"\n    networks:\n      - \"local-network\"\n    environment:\n      - FLASK_APP=main.py\n      - FLASK_RUN_HOST=0.0.0.0\n      - FLASK_RUN_PORT=9091\n    volumes:\n      - /run/mgmtd:/run/mgmtd\n    tty: true\n    stdin_open: true\n\n  frontend:\n    image: {{container_registry_address}}/seal-app-connection-check-frontend:1.0.1\n    container_name: seal-app-conn-check-ui\n    ports:\n      - \"9090:9090\"\n    networks:\n      - \"local-network\"\n    restart: unless-stopped\n\nnetworks:\n  local-network:\n    driver: \"bridge\""
+            "seal-app-connection-check": "version: \"3.8\"\n\nservices:\n  backend:\n    image: {{container_registry_address}}/seal-app-connection-check-backend:1.0.1\n    container_name: seal-app-conn-check-api\n    restart: unless-stopped\n    ports:\n      - \"9091:9091\"\n    networks:\n      - \"local-network\"\n    environment:\n      - FLASK_APP=main.py\n      - FLASK_RUN_HOST=0.0.0.0\n      - FLASK_RUN_PORT=9091\n    volumes:\n      - /run/mgmtd:/run/mgmtd\n    tty: true\n    stdin_open: true\n\n  frontend:\n    image: {{container_registry_address}}/seal-app-connection-check-frontend:1.0.1\n    container_name: seal-app-conn-check-ui\n    ports:\n      - \"9090:9090\"\n    networks:\n      - \"local-network\"\n    restart: unless-stopped\n\nnetworks:\n  local-network:\n    driver: \"bridge\"",
+			{% if compose_deployment is defined and compose_deployment is not empty %}
+    			"compose_deployment": "{{compose_deployment}}"
+    		{% endif %}
 			},
         "compose_docker_config": {
             "auths": {
