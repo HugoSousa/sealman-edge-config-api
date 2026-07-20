@@ -288,3 +288,102 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         if device is None:
             return None
         return dict(cast(Dict[str, Any], device.device_meta) or {})
+
+
+    # -------------------- Device Template Config --------------------
+
+    async def get_device_template_config(
+        self,
+        platform_name: str = "default",
+    ) -> Dict[str, Any]:
+        platform = await self._get_platform(platform_name)
+        return platform.device_template_config or {}
+
+    async def update_device_template_config(
+        self,
+        config: Dict[str, Any],
+        platform_name: str = "default",
+    ) -> Dict[str, Any]:
+        platform = await self._get_platform(platform_name)
+        current = dict(platform.device_template_config or {})
+        current.update(config)
+
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(device_template_config=current)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+
+        return current
+
+
+    # -------------------- Endpoint Types --------------------
+
+    async def get_endpoint_types(
+        self,
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        platform = await self._get_platform(platform_name)
+        return platform.endpoint_types or []
+
+    async def save_endpoint_types(
+        self,
+        types: List[Dict[str, Any]],
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(endpoint_types=types)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return types
+
+    # -------------------- Service Ports --------------------
+
+    async def get_service_ports(
+        self,
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        platform = await self._get_platform(platform_name)
+        return platform.service_ports or []
+
+    async def save_service_ports(
+        self,
+        ports: List[Dict[str, Any]],
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(service_ports=ports)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return ports
+
+    # -------------------- Selected Templates --------------------
+
+    async def get_selected_templates(
+        self,
+        platform_name: str = "default",
+    ) -> List[str]:
+        platform = await self._get_platform(platform_name)
+        return platform.selected_templates or []
+
+    async def save_selected_templates(
+        self,
+        templates: List[str],
+        platform_name: str = "default",
+    ) -> List[str]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(selected_templates=templates)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return templates
