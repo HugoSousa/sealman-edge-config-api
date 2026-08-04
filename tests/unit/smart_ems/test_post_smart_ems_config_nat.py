@@ -5,7 +5,7 @@ import pytest
 from constants import LAN_EDGE_TEMPLATE_VERSIONS
 from exceptions import SEMSError, UnmatchedDependency
 from routers.smart_ems.routes.post_smart_ems_config_nat import post_smart_ems_config_nat
-from ...schemas import NatConfig, NatRule
+from routers.smart_ems.schemas import NatConfig, NatRule
 
 
 @pytest.fixture

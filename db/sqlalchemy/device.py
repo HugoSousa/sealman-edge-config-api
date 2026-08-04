@@ -1,6 +1,5 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from datetime import datetime, timezone
 from sqlalchemy import select, update, func, delete, text, and_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,9 +13,9 @@ from exceptions import APIError
 
 DEVICE_SNAPSHOT_CACHE_KEY = "current"
 
+
 @register_repository(DeviceRepository)
 class SqlAlchemyDeviceRepository(DeviceRepository):
-
     def __init__(self, session: AsyncSession):
         self._session = session
 
@@ -96,9 +95,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
 
     async def _get_platform(self, platform_name: str):
         result = await self._session.execute(
-            select(PlatformSettings).where(
-                PlatformSettings.name == platform_name
-            )
+            select(PlatformSettings).where(PlatformSettings.name == platform_name)
         )
         platform = result.scalar_one_or_none()
 
@@ -134,33 +131,6 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
             "created_at": device.created_at,
             "updated_at": device.updated_at,
         }
-
-    async def get_devices_metadata(
-        self,
-        platform_name: str = "default",
-    ) -> List[Dict[str, Any]]:
-
-        platform_meta = await self.get_platform_meta_keys()
-
-        devices = await self.get_devices_joined_snapshot()
-
-        response: List[Dict[str, Any]] = []
-
-        for device in devices:
-            device_meta = device.get("device_meta", {})
-            merged = self._merge_metadata(platform_meta, device_meta)
-
-            response.append(
-                {
-                    "device_id": device.get("device_id"),
-                    "device_status": device.get("connection_state"),
-                    "device_metadata": merged,
-                    "created_at": device.get("created_at"),
-                    "updated_at": device.get("updated_at"),
-                }
-            )
-
-        return response
 
     async def update_device_metadata(
         self,
@@ -209,6 +179,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
     async def add_platform_meta_key(
         self,
         key: str,
+        options: Dict[str, Any],
         platform_name: str = "default",
     ) -> Dict[str, Any]:
         platform = await self._get_platform(platform_name)
@@ -217,7 +188,10 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         if key in current_meta:
             raise APIError(f"Metadata key '{key}' already exists", 409)
 
-        current_meta[key] = None
+        current_meta[key] = {
+            "prepopulate": options.get("prepopulate", False),
+            "allowAddition": options.get("allowAddition", False),
+        }
 
         stmt = (
             update(PlatformSettings)
@@ -275,6 +249,7 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         await self._session.commit()
 
         return current_meta
+
     async def device_exists(self, device_id: str) -> bool:
         device = await self._get_device(device_id)
         return device is not None
@@ -296,3 +271,119 @@ class SqlAlchemyDeviceRepository(DeviceRepository):
         stmt = delete(Device).where(Device.device_id == device_id)
         await self._session.execute(stmt)
         await self._session.commit()
+
+    async def get_all_devices_raw(self) -> List[Dict[str, Any]]:
+        result = await self._session.execute(select(Device))
+        devices = result.scalars().all()
+        return [
+            {
+                "device_id": device.device_id,
+                "device_meta": device.device_meta or {},
+            }
+            for device in devices
+        ]
+
+    async def get_device_meta_raw(self, device_id: str) -> Optional[Dict[str, Any]]:
+        device = await self._get_device(device_id)
+        if device is None:
+            return None
+        return dict(cast(Dict[str, Any], device.device_meta) or {})
+
+
+    # -------------------- Device Template Config --------------------
+
+    async def get_device_template_config(
+        self,
+        platform_name: str = "default",
+    ) -> Dict[str, Any]:
+        platform = await self._get_platform(platform_name)
+        return platform.device_template_config or {}
+
+    async def update_device_template_config(
+        self,
+        config: Dict[str, Any],
+        platform_name: str = "default",
+    ) -> Dict[str, Any]:
+        platform = await self._get_platform(platform_name)
+        current = dict(platform.device_template_config or {})
+        current.update(config)
+
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(device_template_config=current)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+
+        return current
+
+
+    # -------------------- Endpoint Types --------------------
+
+    async def get_endpoint_types(
+        self,
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        platform = await self._get_platform(platform_name)
+        return platform.endpoint_types or []
+
+    async def save_endpoint_types(
+        self,
+        types: List[Dict[str, Any]],
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(endpoint_types=types)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return types
+
+    # -------------------- Service Ports --------------------
+
+    async def get_service_ports(
+        self,
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        platform = await self._get_platform(platform_name)
+        return platform.service_ports or []
+
+    async def save_service_ports(
+        self,
+        ports: List[Dict[str, Any]],
+        platform_name: str = "default",
+    ) -> List[Dict[str, Any]]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(service_ports=ports)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return ports
+
+    # -------------------- Selected Templates --------------------
+
+    async def get_selected_templates(
+        self,
+        platform_name: str = "default",
+    ) -> List[str]:
+        platform = await self._get_platform(platform_name)
+        return platform.selected_templates or []
+
+    async def save_selected_templates(
+        self,
+        templates: List[str],
+        platform_name: str = "default",
+    ) -> List[str]:
+        stmt = (
+            update(PlatformSettings)
+            .where(PlatformSettings.name == platform_name)
+            .values(selected_templates=templates)
+        )
+        await self._session.execute(stmt)
+        await self._session.commit()
+        return templates
